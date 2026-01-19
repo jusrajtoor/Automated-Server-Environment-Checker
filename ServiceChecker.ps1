@@ -5,7 +5,7 @@ $MailAccount    = Import-Clixml -Path C:\Scripts\SendEmail\outlook.xml
 $MailPort       = 587
 $MailSMTPServer = "smtp-mail.outlook.com"
 $MailFrom       = $MailAccount.UserName
-$MailTo         = "jusraj@hotmail.ca"
+$MailTo         = "jusrajexample@gmail.ca"
 
 # Paths
 $ServicesFilePath = "C:\Maintenance\Services.csv"
