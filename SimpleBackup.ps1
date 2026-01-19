@@ -1,34 +1,61 @@
+# ======================================
+# Backup Script
+# ======================================
+
 # Paths
 $BackupLocationsFilePath = "C:\Maintenance\Directories.txt"
-$StorageLocation        = "C:\Backups"
-$BackupName             = "Backup $(Get-Date -Format 'yyyy-MM-dd HH-mm')"
+$StorageLocation         = "C:\Backups"
+$BackupName              = "Backup $(Get-Date -Format 'yyyy-MM-dd HH-mm')"
+$FullBackupPath          = Join-Path $StorageLocation $BackupName
+
+# Create main backup directory if it doesn't exist
+if (-not (Test-Path $FullBackupPath)) {
+    New-Item -Path $FullBackupPath -ItemType Directory | Out-Null
+}
 
 # Load directories to back up
 $BackupLocations = Get-Content -Path $BackupLocationsFilePath
 
 foreach ($Location in $BackupLocations) {
 
+    # Skip empty lines
+    if ([string]::IsNullOrWhiteSpace($Location)) { continue }
+
     Write-Output "Backing up $Location"
 
     # Preserve drive letter structure
     $LeadingPath = $Location.Replace(':', '')
 
-    $DestinationPath = Join-Path $StorageLocation "$BackupName\$LeadingPath"
+    $DestinationPath = Join-Path $FullBackupPath $LeadingPath
 
     if (-not (Test-Path $DestinationPath)) {
         New-Item -Path $DestinationPath -ItemType Directory | Out-Null
     }
 
-    Get-ChildItem -Path $Location |
-        Copy-Item `
-            -Destination $DestinationPath `
-            -Recurse `
-            -Container `
-            -Force
+    try {
+        Get-ChildItem -Path $Location -ErrorAction Stop |
+            Copy-Item `
+                -Destination $DestinationPath `
+                -Recurse `
+                -Container `
+                -Force
+        Write-Output "Backup of $Location completed successfully."
+    }
+    catch {
+        Write-Warning "Failed to backup $Location. Error: $_"
+    }
 }
 
 # Compress backup
-Compress-Archive `
-    -Path "$StorageLocation\$BackupName" `
-    -DestinationPath "$StorageLocation\$BackupName.zip" `
-    -CompressionLevel Fastest
+$ZipPath = "$FullBackupPath.zip"
+
+try {
+    Compress-Archive `
+        -Path $FullBackupPath `
+        -DestinationPath $ZipPath `
+        -CompressionLevel Fastest -Force
+    Write-Output "Backup compressed to $ZipPath"
+}
+catch {
+    Write-Warning "Failed to compress backup. Error: $_"
+}
