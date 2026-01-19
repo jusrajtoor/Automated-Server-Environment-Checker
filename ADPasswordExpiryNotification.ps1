@@ -1,11 +1,11 @@
-Import-Module C:\Scripts\SendEmail\MailModule.psm1
+lImport-Module C:\Scripts\SendEmail\MailModule.psm1
 
 $MailAccount = Import-Clixml -Path C:\Scripts\SendEmail\outlook.xml
 $MailPort = 587
 $MailSMTPServer = "smtp-mail.outlook.com"
 
 $MailFrom = $MailAccount.UserName
-$MailTo   = "jusraj@hotmail.ca"
+$MailTo   = "jusrajexample@gmail.ca"
 
 $HowManyDaysBeforeNotify = 14
 
@@ -18,7 +18,7 @@ $User = Get-ADUser `
 if ($User -and $User.Enabled -and !$User.PasswordNeverExpires -and !$User.PasswordExpired) {
 
     $Name = "Jusraj"
-    $Email = "jusraj@hotmail.ca"
+    $Email = "jusrajexample@gmail.ca"
 
     $PasswordSetOn = $User.PasswordLastSet
 
