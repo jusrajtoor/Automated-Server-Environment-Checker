@@ -1,34 +1,72 @@
 Import-Module C:\Scripts\SendEmail\MailModule.psm1
-$MailAccount=Import-Clixml -Path C:\Scripts\SendEmail\outlook.xml
-$MailPort=587
-$MailSMTPServer="smtp-mail.outlook.com"
-$MailFrom=$MailAccount.UserName
-$MailTo="testjackedprogrammer@outlook.com"
 
-$LogPath="C:\users\Administrator.HYPV2016L\Desktop\PS-BeginnerProjects\Logs"
-$LogFile="Lockouts - $(Get-Date -Format "yyyy-MM-dd hh-mm").csv"
+# Mail credentials
+$MailAccount = Import-Clixml -Path C:\Scripts\SendEmail\outlook.xml
+$MailPort = 587
+$MailSMTPServer = "smtp-mail.outlook.com"
 
-$LockedOutUsers=Search-ADAccount -LockedOut -Server jacked.ca
+$MailFrom = $MailAccount.UserName
+$MailTo   = "jusraj@hotmail.ca"
 
-$Export=[System.Collections.ArrayList]@()
+# Logging
+$LogPath = "C:\Logs"
+$LogFile = "AccountLockouts - $(Get-Date -Format 'yyyy-MM-dd HH-mm').csv"
 
-foreach($LockedOutUser in $LockedOutUsers){
-    $ADUser=Get-ADUser -Identity $LockedOutUser.SamAccountName -Server jacked.ca -Properties *
-    $Entry=New-Object -TypeName PSObject
-    Add-Member -InputObject $Entry -MemberType NoteProperty -Name "Name" -Value "$($ADUser.GivenName) $($ADUser.Surname)"
-    Add-Member -InputObject $Entry -MemberType NoteProperty -Name "UserName" -Value $ADUser.SamAccountName
-    Add-Member -InputObject $Entry -MemberType NoteProperty -Name "LockoutTime" -Value $([datetime]::FromFileTime($ADUser.lockoutTime))
-    Add-Member -InputObject $Entry -MemberType NoteProperty -Name "LastBadPasswordAttempt" -Value $ADUser.LastBadPasswordAttempt
+# Get locked-out AD users
+$LockedOutUsers = Search-ADAccount `
+    -LockedOut `
+    -Server "example.local"
+
+$Export = [System.Collections.ArrayList]@()
+
+foreach ($LockedOutUser in $LockedOutUsers) {
+
+    $ADUser = Get-ADUser `
+        -Identity $LockedOutUser.SamAccountName `
+        -Server "example.local" `
+        -Properties *
+
+    $Entry = [PSCustomObject]@{
+        Name                    = "$($ADUser.GivenName) $($ADUser.Surname)"
+        UserName                = $ADUser.SamAccountName
+        LockoutTime             = [datetime]::FromFileTime($ADUser.LockoutTime)
+        LastBadPasswordAttempt  = $ADUser.LastBadPasswordAttempt
+    }
+
     [void]$Export.Add($Entry)
 }
 
-if($Export){
-    $Export | Export-Csv -Path "$LogPath\$LogFile" -Delimiter ',' -NoTypeInformation
+# Export CSV if data exists
+if ($Export.Count -gt 0) {
+    if (-not (Test-Path $LogPath)) {
+        New-Item -ItemType Directory -Path $LogPath | Out-Null
+    }
+
+    $Export | Export-Csv `
+        -Path "$LogPath\$LogFile" `
+        -NoTypeInformation
 }
 
-if(Test-Path -Path "$LogPath\$LogFile"){
-    $Subject="Account Lockouts"
-    $Body="Here are the lockedout accounts"
-    $Attachment="$LogPath\$LogFile"
-    Send-MailKitMessage -From $MailFrom -To $MailTo -SMTPServer $MailSMTPServer -Port $MailPort -Credential $MailAccount -Subject $Subject -Body $Body -Attachments $Attachment
+# Email report if file exists
+if (Test-Path "$LogPath\$LogFile") {
+
+    $Subject = "Active Directory Account Lockouts"
+    $Body = @"
+Hi Jusraj,
+
+Attached is the latest report of currently locked-out Active Directory accounts.
+
+Regards,
+Jusraj
+"@
+
+    Send-MailKitMessage `
+        -From $MailFrom `
+        -To $MailTo `
+        -SMTPServer $MailSMTPServer `
+        -Port $MailPort `
+        -Credential $MailAccount `
+        -Subject $Subject `
+        -Body $Body `
+        -Attachments "$LogPath\$LogFile"
 }
