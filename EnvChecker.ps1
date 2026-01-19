@@ -1,66 +1,102 @@
 Import-Module C:\Scripts\SendEmail\MailModule.psm1
-$MailAccount=Import-Clixml -Path C:\Scripts\SendEmail\outlook.xml
-$MailPort=587
-$MailSMTPServer="smtp-mail.outlook.com"
-$MailFrom=$MailAccount.Username
-$MailTo="testjackedprogrammer@outlook.com"
-$ServerListFilePath="C:\users\Administrator.HYPV2016L\Desktop\PS-BeginnerProjects\EnvCheckerList.csv"
 
-$ServerList=Import-Csv -Path $ServerListFilePath -Delimiter ','
+# Mail configuration
+$MailAccount     = Import-Clixml -Path C:\Scripts\SendEmail\outlook.xml
+$MailPort        = 587
+$MailSMTPServer  = "smtp-mail.outlook.com"
+$MailFrom        = $MailAccount.UserName
+$MailTo          = "jusraj@hotmail.ca"
 
-$Export=[System.Collections.ArrayList]@()
+# Server list
+$ServerListFilePath = "C:\EnvChecks\EnvCheckerList.csv"
+$ServerList = Import-Csv -Path $ServerListFilePath
 
-foreach($Server in $ServerList){
-    $ServerName=$Server.ServerName
-    $LastStatus=$Server.LastStatus
-    $DownSince=$Server.DownSince
-    $LastDownAlert=$Server.LastDownAlertTime
-    $Alert=$false
-    $Connection=Test-Connection $ServerName -Count 1
-    $DateTime=Get-Date
+$Export = [System.Collections.ArrayList]@()
 
-    if($Connection.Status -eq "Success"){
-        if($LastStatus -ne "Success"){
-            $Server.DownSince=$null
-            $Server.LastDownAlertTime=$null
+foreach ($Server in $ServerList) {
+
+    $ServerName     = $Server.ServerName
+    $LastStatus     = $Server.LastStatus
+    $DownSince      = $Server.DownSince
+    $LastDownAlert  = $Server.LastDownAlertTime
+    $Alert          = $false
+    $DateTime       = Get-Date
+
+    $Connection = Test-Connection -ComputerName $ServerName -Count 1 -ErrorAction SilentlyContinue
+
+    if ($Connection.Status -eq "Success") {
+
+        if ($LastStatus -ne "Success") {
+            $Server.DownSince = $null
+            $Server.LastDownAlertTime = $null
+
             Write-Output "$ServerName is now online"
-            $Alert=$true
-            $Subject="$ServerName is now online!"
-            $Body="<h2>$ServerName is now online!</h2>"
-            $Body+="<p>$ServerName is now online at $DateTime</p>"
+
+            $Alert   = $true
+            $Subject = "$ServerName is now online!"
+            $Body    = @"
+<h2>$ServerName is now online</h2>
+<p>$ServerName came online at $DateTime</p>
+"@
         }
-    }else{
-        if($LastStatus -eq "Success"){
+
+    } else {
+
+        if ($LastStatus -eq "Success") {
+
             Write-Output "$ServerName is now offline"
-            $Server.DownSince=$DateTime
-            $Server.LastDownAlertTime=$DateTime
-            $Alert=$true
-            $Subject="$ServerName is now offline!"
-            $Body="<h2>$ServerName is now offline!</h2>"
-            $Body+="<p>$ServerName is now offline at $DateTime</p>"
-        }else{
-            $DownFor=$((Get-Date -Date $DateTime) - (Get-Date -Date $DownSince)).Days
-            $SinceLastDownAlert=$((Get-Date -Date $DateTime) - (Get-Date -Date $LastDownAlert)).Days
-            if(($DownFor -ge 1) -and ($SinceLastDownAlert -ge 1)){
-                Write-Output "It has been $SinceLastDownAlert days since last alert"
-                Write-Output "$ServerName is still offline for $DownFor days"
-                $Server.LastDownAlertTime=$DateTime
-                $Alert=$true
-                $Subject="$ServerName is still offline for $DownFor days!"
-                $Body="<h2>$ServerName has been offline for $DownFor days!</h2>"
-                $Body+="<p>$ServerName is now offline since $DownSince</p>"
+
+            $Server.DownSince = $DateTime
+            $Server.LastDownAlertTime = $DateTime
+
+            $Alert   = $true
+            $Subject = "$ServerName is now offline!"
+            $Body    = @"
+<h2>$ServerName is now offline</h2>
+<p>$ServerName went offline at $DateTime</p>
+"@
+
+        } else {
+
+            $DownFor = (New-TimeSpan -Start $DownSince -End $DateTime).Days
+            $SinceLastDownAlert = (New-TimeSpan -Start $LastDownAlert -End $DateTime).Days
+
+            if ($DownFor -ge 1 -and $SinceLastDownAlert -ge 1) {
+
+                Write-Output "$ServerName is still offline ($DownFor days)"
+
+                $Server.LastDownAlertTime = $DateTime
+
+                $Alert   = $true
+                $Subject = "$ServerName still offline ($DownFor days)"
+                $Body    = @"
+<h2>$ServerName still offline</h2>
+<p>Offline since $DownSince ($DownFor days)</p>
+"@
             }
-        } 
+        }
     }
 
-    if($Alert){
-        Send-MailKitMessage -From $MailFrom -To $MailTo -SMTPServer $MailSMTPServer -Port $MailPort -Subject $Subject -Body $Body -BodyAsHtml -Credential $MailAccount
+    if ($Alert) {
+        Send-MailKitMessage `
+            -From $MailFrom `
+            -To $MailTo `
+            -SMTPServer $MailSMTPServer `
+            -Port $MailPort `
+            -Credential $MailAccount `
+            -Subject $Subject `
+            -Body $Body `
+            -BodyAsHtml
     }
 
-    $Server.LastStatus=$Connection.Status
-    $Server.LastCheckTime=$DateTime
-    [void]$Export.add($Server)
+    $Server.LastStatus   = $Connection.Status
+    $Server.LastCheckTime = $DateTime
+
+    [void]$Export.Add($Server)
 }
 
-$Export | Export-Csv -Path $ServerListFilePath -Delimiter ',' -NoTypeInformation
+# Update server list
+$Export | Export-Csv `
+    -Path $ServerListFilePath `
+    -NoTypeInformation
 
