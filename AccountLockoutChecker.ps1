@@ -6,7 +6,7 @@ $MailPort = 587
 $MailSMTPServer = "smtp-mail.outlook.com"
 
 $MailFrom = $MailAccount.UserName
-$MailTo   = "jusraj@hotmail.ca"
+$MailTo   = "jusrajexample@gmail.ca"
 
 # Logging
 $LogPath = "C:\Logs"
