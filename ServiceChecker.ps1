@@ -1,44 +1,70 @@
 Import-Module C:\Scripts\SendEmail\MailModule.psm1
-$MailAccount=Import-Clixml -Path C:\Scripts\SendEmail\outlook.xml
-$MailPort=587
-$MailSMTPServer="smtp-mail.outlook.com"
-$MailFrom=$MailAccount.Username
-$MailTo="testjackedprogrammer@outlook.com"
 
-$ServicesFilePath="C:\users\Administrator.HYPV2016L\Desktop\PS-BeginnerProjects\Services.csv"
-$LogPath="C:\users\Administrator.HYPV2016L\Desktop\PS-BeginnerProjects\Logs"
-$LogFile="Services-$(Get-Date -Format "yyyy-MM-dd hh-mm").txt"
-$ServicesList=Import-Csv -Path $ServicesFilePath -Delimiter ','
+# Mail configuration
+$MailAccount    = Import-Clixml -Path C:\Scripts\SendEmail\outlook.xml
+$MailPort       = 587
+$MailSMTPServer = "smtp-mail.outlook.com"
+$MailFrom       = $MailAccount.UserName
+$MailTo         = "jusraj@hotmail.ca"
 
-foreach($Service in $ServicesList){
-    $CurrentServiceStatus=(Get-Service -Name $Service.Name).status
+# Paths
+$ServicesFilePath = "C:\Maintenance\Services.csv"
+$LogPath          = "C:\Logs"
+$LogFile          = "Services-$(Get-Date -Format 'yyyy-MM-dd HH-mm').txt"
 
-    if($Service.Status -ne $CurrentServiceStatus){
-        $Log="Service : $($Service.Name) is currently $CurrentServiceStatus, should be $($Service.Status)"
+# Load service configuration
+$ServicesList = Import-Csv -Path $ServicesFilePath
+
+foreach ($Service in $ServicesList) {
+
+    $CurrentServiceStatus = (Get-Service -Name $Service.Name).Status
+
+    if ($Service.Status -ne $CurrentServiceStatus) {
+
+        $Log = "Service '$($Service.Name)' is currently $CurrentServiceStatus, should be $($Service.Status)"
         Write-Output $Log
         Out-File -FilePath "$LogPath\$LogFile" -Append -InputObject $Log
 
-        $Log="Setting $($Service.Name) to $($Service.Status)"
+        $Log = "Setting service '$($Service.Name)' to $($Service.Status)"
         Write-Output $Log
         Out-File -FilePath "$LogPath\$LogFile" -Append -InputObject $Log
+
         Set-Service -Name $Service.Name -Status $Service.Status
 
-        $AfterServiceStatus=(Get-Service -Name $Service.Name).Status
-        if($Service.Status -eq $AfterServiceStatus){
-            $Log="Action was succesful Service $($Service.Name) is now $AfterServiceStatus"
-            Write-Output $Log
-            Out-File -FilePath "$LogPath\$LogFile" -Append -InputObject $Log    
-        }else{
-            $Log="Action failed Service $($Service.Name) is still $AfterServiceStatus, should be $($Service.Status)"
-            Write-Output $Log
-            Out-File -FilePath "$LogPath\$LogFile" -Append -InputObject $Log
+        $AfterServiceStatus = (Get-Service -Name $Service.Name).Status
+
+        if ($Service.Status -eq $AfterServiceStatus) {
+            $Log = "Action successful: service '$($Service.Name)' is now $AfterServiceStatus"
+        } else {
+            $Log = "Action failed: service '$($Service.Name)' is still $AfterServiceStatus (expected $($Service.Status))"
         }
+
+        Write-Output $Log
+        Out-File -FilePath "$LogPath\$LogFile" -Append -InputObject $Log
     }
 }
 
-if(Test-Path -Path "$LogPath\$LogFile"){
-    $Subject="$($env:COMPUTERNAME) is having issues with services"
-    $Body="Here is the log file"
-    $Attachment="$LogPath\$LogFile"
-    Send-MailKitMessage -From $MailFrom -To $MailTo -SMTPServer $MailSMTPServer -Port $MailPort -Credential $MailAccount -Subject $Subject -Body $Body -Attachments $Attachment
+# Email log if issues occurred
+if (Test-Path "$LogPath\$LogFile") {
+
+    $Subject = "$($env:COMPUTERNAME) – Service Status Remediation"
+    $Body = @"
+Hi Jusraj,
+
+One or more services required remediation.
+Please see the attached log for details.
+
+Regards,
+Jusraj
+"@
+
+    Send-MailKitMessage `
+        -From $MailFrom `
+        -To $MailTo `
+        -SMTPServer $MailSMTPServer `
+        -Port $MailPort `
+        -Credential $MailAccount `
+        -Subject $Subject `
+        -Body $Body `
+        -Attachments "$LogPath\$LogFile"
 }
