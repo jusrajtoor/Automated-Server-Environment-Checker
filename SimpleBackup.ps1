@@ -1,16 +1,34 @@
-$BackupLocationsFilePath="C:\Users\Administrator.HYPV2016L\Desktop\PS-BeginnerProjects\Directories.txt"
-$BackupLocations=Get-Content -Path $BackupLocationsFilePath
+# Paths
+$BackupLocationsFilePath = "C:\Maintenance\Directories.txt"
+$StorageLocation        = "C:\Backups"
+$BackupName             = "Backup $(Get-Date -Format 'yyyy-MM-dd HH-mm')"
 
-$StorageLocation="C:\Users\Administrator.HYPV2016L\Desktop\BackUpStorage"
-$BackupName="Backup $(Get-Date -Format "yyyy-MM-dd hh-mm")"
+# Load directories to back up
+$BackupLocations = Get-Content -Path $BackupLocationsFilePath
 
-foreach($Location in $BackupLocations){
-    Write-Output "Backing up $($Location)"
-    $LeadingPath="$($Location.Replace(':',''))"
-    if(-not (Test-Path "$StorageLocation\$BackupName\$LeadingPath")){
-        New-Item -Path "$StorageLocation\$BackupName\$LeadingPath" -ItemType Directory
+foreach ($Location in $BackupLocations) {
+
+    Write-Output "Backing up $Location"
+
+    # Preserve drive letter structure
+    $LeadingPath = $Location.Replace(':', '')
+
+    $DestinationPath = Join-Path $StorageLocation "$BackupName\$LeadingPath"
+
+    if (-not (Test-Path $DestinationPath)) {
+        New-Item -Path $DestinationPath -ItemType Directory | Out-Null
     }
-    Get-ChildItem -Path $Location | Copy-Item -Destination "$StorageLocation\$BackupName\$LeadingPath" -Recurse -Container
+
+    Get-ChildItem -Path $Location |
+        Copy-Item `
+            -Destination $DestinationPath `
+            -Recurse `
+            -Container `
+            -Force
 }
 
-Compress-Archive -Path "$StorageLocation\$BackupName" -DestinationPath "$StorageLocation\$BackupName.zip" -CompressionLevel Fastest
+# Compress backup
+Compress-Archive `
+    -Path "$StorageLocation\$BackupName" `
+    -DestinationPath "$StorageLocation\$BackupName.zip" `
+    -CompressionLevel Fastest
