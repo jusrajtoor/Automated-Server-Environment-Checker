@@ -1,55 +1,73 @@
-function Copy-ADPrincipalGroupMembership{
+function Copy-ADPrincipalGroupMembership {
     [CmdletBinding()]
     Param(
         [Parameter(Mandatory)]
-        [string]$OriginalUserName,
+        [string]$SourceUserName,
+
         [Parameter(Mandatory)]
-        [string]$ReceivingUserName,
+        [string]$TargetUserName,
+
         [Parameter(Mandatory)]
         [string]$Server,
+
         [Parameter()]
         [switch]$Replace
     )
 
-    try{
-        $OriginalUser=Get-ADPrincipalGroupMembership -Identity $OriginalUserName -Server $Server
-        $ReceivingUser=Get-ADPrincipalGroupMembership -Identity $ReceivingUserName -Server $Server
-        
-        if($OriginalUser -and $ReceivingUser){
-            $CompareResults=Compare-Object -ReferenceObject $OriginalUser -DifferenceObject $ReceivingUser -Property SamAccountName
-            $Adds=$CompareResults | Where-Object SideIndicator -eq "<="
-            $Removes=$CompareResults | Where-Object SideIndicator -eq "=>"
-        }elseif($OriginalUser){
-            $Adds=$OriginalUser
-            $Removes=$null
-        }elseif($ReceivingUser){
-            $Removes=$ReceivingUser
-            $Adds=$null
+    try {
+        $SourceGroups = Get-ADPrincipalGroupMembership `
+            -Identity $SourceUserName `
+            -Server $Server
+
+        $TargetGroups = Get-ADPrincipalGroupMembership `
+            -Identity $TargetUserName `
+            -Server $Server
+
+        if ($SourceGroups -and $TargetGroups) {
+
+            $CompareResults = Compare-Object `
+                -ReferenceObject $SourceGroups `
+                -DifferenceObject $TargetGroups `
+                -Property SamAccountName
+
+            $Adds    = $CompareResults | Where-Object SideIndicator -eq "<="
+            $Removes = $CompareResults | Where-Object SideIndicator -eq "=>"
+
+        } elseif ($SourceGroups) {
+            $Adds    = $SourceGroups
+            $Removes = $null
+
+        } elseif ($TargetGroups) {
+            $Adds    = $null
+            $Removes = $TargetGroups
         }
-        
-        if($Adds){
-            Foreach($Add in $Adds){
-                Write-Debug "Adding $ReceivingUserName to group $($Add.SamAccountName)"
-                Add-ADGroupMember -Identity $add.samAccountName -Members $ReceivingUserName -Server $Server
+
+        if ($Adds) {
+            foreach ($Add in $Adds) {
+                Write-Debug "Adding $TargetUserName to group $($Add.SamAccountName)"
+                Add-ADGroupMember `
+                    -Identity $Add.SamAccountName `
+                    -Members $TargetUserName `
+                    -Server $Server
             }
         }
-        
-        if($Replace){
-            if($Removes){
-                Foreach($Remove in $Removes){
-                    Write-Debug "Removing $ReceivingUserName from group $($Add.SamAccountName)"
-                    Remove-ADGroupMember -Identity $Remove.samAccountName -Members $ReceivingUserName -Server $Server -Confirm:$false
-                }
+
+        if ($Replace -and $Removes) {
+            foreach ($Remove in $Removes) {
+                Write-Debug "Removing $TargetUserName from group $($Remove.SamAccountName)"
+                Remove-ADGroupMember `
+                    -Identity $Remove.SamAccountName `
+                    -Members $TargetUserName `
+                    -Server $Server `
+                    -Confirm:$false
             }
         }
-        
-    }catch{
+
+    } catch {
         Write-Error $_.Exception.Message
     }
-
 }
 
-Copy-ADPrincipalGroupMembership -OriginalUserName "testuser1" -ReceivingUserName "testuser2" -Server "jacked.ca" -Replace -Debug
 
 
 
